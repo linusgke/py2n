@@ -15,7 +15,7 @@ from .const import (
     API_SYSTEM_STATUS
 )
 
-from .exceptions import DeviceConnectionError, InvalidAuthError, NotInitialized
+from .exceptions import Py2NError, DeviceConnectionError, InvalidAuthError, NotInitialized
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class Py2NDevice:
         self._info: dict[str, Any] | None = None
         self._status: dict[str, Any] | None = None
         self._initializing: bool = False
+        self._last_error: Py2NError | None = None
         self.initialized: bool = False
     
     @classmethod
@@ -73,7 +74,14 @@ class Py2NDevice:
         try:
             self._info = await get_info(self.aiohttp_session, self.options)
             self._status = await get_status(self.aiohttp_session, self.options)
-
+        except InvalidAuthError as err:
+            self._last_error = err
+            _LOGGER.debug("host %s: error: %r", ip, self._last_error)
+            raise
+        except CONNECT_ERRORS as err:
+            self._last_error = DeviceConnectionError(err)
+            _LOGGER.debug("host %s: error: %r", ip, self._last_error)
+            raise DeviceConnectionError(err) from err
         finally:
             self.initialized = True
             self._initializing = False
