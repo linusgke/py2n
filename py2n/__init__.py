@@ -62,7 +62,9 @@ class Py2NDevice:
 
             for switch in switches:
                 pySwitches.append(
-                    Py2NDeviceSwitch(switch["switch"], switch["active"], switch["locked"])
+                    Py2NDeviceSwitch(
+                        switch["switch"], switch["active"], switch["locked"]
+                    )
                 )
 
             self._data = Py2NDeviceData(
@@ -84,20 +86,35 @@ class Py2NDevice:
         except Py2NError as err:
             self._last_error = err
             raise
-    
+
     async def audio_test(self) -> None:
         try:
             await test_audio(self.aiohttp_session, self.options)
         except Py2NError as err:
             self._last_error = err
             raise
-    
+
     async def set_switch(self, switch_id, on) -> None:
+        if not self._data.switches:
+            raise Py2NError("no switches configured")
+
+        if switch_id < 1 | switch_id > len(self._data.switches):
+            raise Py2NError("invalid switch id")
+
         try:
             await set_switch(self.aiohttp_session, self.options, switch_id, on)
         except Py2NError as err:
             self._last_error = err
             raise
+
+    def get_switch(self, switch_id) -> bool:
+        if not self._data.switches:
+            raise Py2NError("no switches configured")
+
+        if switch_id < 1 | switch_id > len(self._data.switches):
+            raise Py2NError("invalid switch id")
+
+        return self._data.switches[switch_id - 1].active
 
     @property
     def ip_address(self) -> str:
