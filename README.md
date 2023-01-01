@@ -1,6 +1,6 @@
 # Py2N
 
-Asynchronous library to control [2N® devices](https://https://www.2n.com)
+Asynchronous library to control [2N Telekomunikace® devices](https://www.2n.com)
 
 **This library is under development**
 
