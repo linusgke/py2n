@@ -14,6 +14,7 @@ from .const import (
     API_SYSTEM_RESTART,
     API_SWITCH_STATUS,
     API_SWITCH_CONTROL,
+    API_AUDIO_TEST,
 )
 
 from .model import Py2NConnectionData
@@ -125,6 +126,32 @@ async def get_switches(
         raise Py2NError("request unsucessful")
 
     return result["result"]["switches"]
+
+
+async def test_audio(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> None:
+    """Test device audio through REST call."""
+    try:
+        async with aiohttp_session.get(
+            f"http://{options.ip_address}{API_AUDIO_TEST}",
+            timeout=HTTP_CALL_TIMEOUT,
+            auth=options.auth,
+        ) as response:
+            if response.status == 401:
+                raise InvalidAuthError("auth missing and required")
+
+            result: dict[str, Any] = await response.json()
+    except CONNECT_ERRORS as err:
+        error = DeviceConnectionError(err)
+        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
+        raise error from err
+    except InvalidAuthError as err:
+        _LOGGER.debug("host %s: error: %r", options, error)
+        raise
+
+    if not result["success"]:
+        raise Py2NError("request unsucessful")
 
 
 async def set_switch(
