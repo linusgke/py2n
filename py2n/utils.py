@@ -4,13 +4,21 @@ from __future__ import annotations
 import logging
 import aiohttp
 
-from typing import Any
+from typing import Any, List
 
-from .const import CONNECT_ERRORS, HTTP_CALL_TIMEOUT, API_SYSTEM_INFO, API_SYSTEM_STATUS
+from .const import (
+    CONNECT_ERRORS,
+    HTTP_CALL_TIMEOUT,
+    API_SYSTEM_INFO,
+    API_SYSTEM_STATUS,
+    API_SYSTEM_RESTART,
+    API_SWITCH_STATUS,
+    API_SWITCH_CONTROL,
+)
 
 from .model import Py2NConnectionData
 
-from .exceptions import DeviceConnectionError, InvalidAuthError
+from .exceptions import Py2NError, DeviceConnectionError, InvalidAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +39,9 @@ async def get_info(
         _LOGGER.debug("host %s: error: %r", options.ip_address, error)
         raise error from err
 
+    if not result["success"]:
+        raise Py2NError("request unsucessful")
+
     return result["result"]
 
 
@@ -42,9 +53,9 @@ async def get_status(
         async with aiohttp_session.get(
             f"http://{options.ip_address}{API_SYSTEM_STATUS}",
             timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth if options.username is not None else None,
+            auth=options.auth,
         ) as response:
-            if response.status != 200:
+            if response.status == 401:
                 raise InvalidAuthError("auth missing and required")
 
             result: dict[str, Any] = await response.json()
@@ -52,5 +63,94 @@ async def get_status(
         error = DeviceConnectionError(err)
         _LOGGER.debug("host %s: error: %r", options.ip_address, error)
         raise error from err
+    except InvalidAuthError as err:
+        _LOGGER.debug("host %s: error: %r", options, error)
+        raise
+
+    if not result["success"]:
+        raise Py2NError("request unsucessful")
 
     return result["result"]
+
+
+async def restart(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> None:
+    """Restart device through REST call."""
+    try:
+        async with aiohttp_session.get(
+            f"http://{options.ip_address}{API_SYSTEM_RESTART}",
+            timeout=HTTP_CALL_TIMEOUT,
+            auth=options.auth,
+        ) as response:
+            if response.status == 401:
+                raise InvalidAuthError("auth missing and required")
+
+            result: dict[str, Any] = await response.json()
+    except CONNECT_ERRORS as err:
+        error = DeviceConnectionError(err)
+        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
+        raise error from err
+    except InvalidAuthError as err:
+        _LOGGER.debug("host %s: error: %r", options, error)
+        raise
+
+    if not result["success"]:
+        raise Py2NError("request unsucessful")
+
+
+async def get_switches(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> List[Any]:
+    """Get switches from device through REST call."""
+    try:
+        async with aiohttp_session.get(
+            f"http://{options.ip_address}{API_SWITCH_STATUS}",
+            timeout=HTTP_CALL_TIMEOUT,
+            auth=options.auth,
+        ) as response:
+            if response.status == 401:
+                raise InvalidAuthError("auth missing and required")
+
+            result: dict[str, Any] = await response.json()
+    except CONNECT_ERRORS as err:
+        error = DeviceConnectionError(err)
+        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
+        raise error from err
+    except InvalidAuthError as err:
+        _LOGGER.debug("host %s: error: %r", options, error)
+        raise
+
+    if not result["success"]:
+        raise Py2NError("request unsucessful")
+
+    return result["result"]["switches"]
+
+
+async def set_switch(
+    aiohttp_session: aiohttp.ClientSession,
+    options: Py2NConnectionData,
+    switch_id: int,
+    on: bool,
+) -> List[Any]:
+    """Set switch value of device through REST call."""
+    try:
+        async with aiohttp_session.get(
+            f"http://{options.ip_address}{API_SWITCH_CONTROL}?switch={switch_id}&action={'on' if on else 'off'}",
+            timeout=HTTP_CALL_TIMEOUT,
+            auth=options.auth,
+        ) as response:
+            if response.status == 401:
+                raise InvalidAuthError("auth missing and required")
+
+            result: dict[str, Any] = await response.json()
+    except CONNECT_ERRORS as err:
+        error = DeviceConnectionError(err)
+        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
+        raise error from err
+    except InvalidAuthError as err:
+        _LOGGER.debug("host %s: error: %r", options, error)
+        raise
+
+    if not result["success"]:
+        raise Py2NError("request unsucessful")

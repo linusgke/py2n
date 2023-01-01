@@ -5,20 +5,14 @@ from __future__ import annotations
 import logging
 import aiohttp
 
-from typing import Any
+from typing import Any, List
 from datetime import datetime, timedelta, timezone
-from .const import CONNECT_ERRORS
 
-from .model import Py2NDeviceData, Py2NConnectionData
+from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
-from .exceptions import (
-    NotInitialized,
-    Py2NError,
-    DeviceConnectionError,
-    InvalidAuthError,
-)
+from .exceptions import NotInitialized, Py2NError
 
-from .utils import get_info, get_status
+from .utils import get_info, get_status, restart, get_switches, set_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,14 +22,10 @@ class Py2NDevice:
         """Device init."""
         self.aiohttp_session: aiohttp.ClientSession = aiohttp_session
         self.options = options
-        self.data: Py2NDeviceData
         self.initialized: bool = False
 
-        self._info: dict[str, Any] | None = None
-        self._status: dict[str, Any] | None = None
         self._initializing: bool = False
         self._last_error: Py2NError | None = None
-        
 
     @classmethod
     async def create(
@@ -60,30 +50,47 @@ class Py2NDevice:
         finally:
             self._initializing = False
 
-    async def update(self) -> Py2NDeviceData:
-        ip = self.options.ip_address
-
+    async def update(self) -> None:
         try:
-            self._info = await get_info(self.aiohttp_session, self.options)
-            self._status = await get_status(self.aiohttp_session, self.options)
+            info: dict[str, Any] = await get_info(self.aiohttp_session, self.options)
+            status: dict[str, Any] = await get_status(
+                self.aiohttp_session, self.options
+            )
+            switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
+
+            pySwitches = []
+
+            for switch in switches:
+                pySwitches.append(
+                    Py2NDeviceSwitch(switch["switch"], switch["active"], switch["locked"])
+                )
 
             self._data = Py2NDeviceData(
-                name=self._info["deviceName"],
-                model=self._info["variant"],
-                serial=self._info["serialNumber"],
-                firmware=self._info["swVersion"],
-                uptime=datetime.now(timezone.utc) - timedelta(seconds=self._status["upTime"])
+                name=info["deviceName"],
+                model=info["variant"],
+                serial=info["serialNumber"],
+                firmware=f"{info['swVersion']}-{info['buildType']}",
+                hardware=info["hwVersion"],
+                uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
+                switches=pySwitches,
             )
-        except InvalidAuthError as err:
+        except Py2NError as err:
             self._last_error = err
-            _LOGGER.debug("host %s: error: %r", ip, self._last_error)
             raise
-        except CONNECT_ERRORS as err:
-            self._last_error = DeviceConnectionError(err)
-            _LOGGER.debug("host %s: error: %r", ip, self._last_error)
-            raise DeviceConnectionError(err) from err
 
-        return self._data
+    async def restart(self) -> None:
+        try:
+            await restart(self.aiohttp_session, self.options)
+        except Py2NError as err:
+            self._last_error = err
+            raise
+    
+    async def set_switch(self, switch_id, on) -> None:
+        try:
+            await set_switch(self.aiohttp_session, self.options, switch_id, on)
+        except Py2NError as err:
+            self._last_error = err
+            raise
 
     @property
     def ip_address(self) -> str:
@@ -91,7 +98,7 @@ class Py2NDevice:
         return self.options.ip_address
 
     @property
-    def data(self) -> str:
+    def data(self) -> Py2NDeviceData:
         """Get device data."""
         if not self.initialized:
             raise NotInitialized

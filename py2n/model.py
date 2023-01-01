@@ -1,5 +1,7 @@
 """Models for 2N library."""
 from __future__ import annotations
+from typing import List
+from enum import Enum
 
 import aiohttp
 
@@ -29,6 +31,15 @@ class Py2NConnectionData:
 
 
 @dataclass
+class Py2NDeviceSwitch:
+    """Representation of 2N device switch."""
+
+    id: int
+    active: bool
+    locked: bool
+
+
+@dataclass
 class Py2NDeviceData:
     """Data collected from a 2N device."""
 
@@ -36,4 +47,6 @@ class Py2NDeviceData:
     model: str
     serial: str
     firmware: str
+    hardware: str
     uptime: datetime
+    switches: List[Py2NDeviceSwitch]
