@@ -12,7 +12,7 @@ from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
 from .exceptions import NotInitialized, Py2NError
 
-from .utils import get_info, get_status, restart, get_switches, set_switch
+from .utils import get_info, get_status, restart, test_audio, get_switches, set_switch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +81,13 @@ class Py2NDevice:
     async def restart(self) -> None:
         try:
             await restart(self.aiohttp_session, self.options)
+        except Py2NError as err:
+            self._last_error = err
+            raise
+    
+    async def audio_test(self) -> None:
+        try:
+            await test_audio(self.aiohttp_session, self.options)
         except Py2NError as err:
             self._last_error = err
             raise
