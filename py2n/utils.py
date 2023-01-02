@@ -142,6 +142,9 @@ async def api_request(
         code = result["error"]["code"]
         try:
             error = ApiError(code)
+            if error == ApiError.INSUFFICIENT_PRIVILEGES and not options.auth:
+                error = ApiError.AUTHORIZATION_REQUIRED
+
             err = DeviceApiError(error)
         except ValueError:
             err = DeviceUnsupportedError("invalid error code")
