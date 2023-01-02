@@ -1,9 +1,4 @@
 """Constants for 2N library."""
-import asyncio
-import aiohttp
-
-CONNECT_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
-
 HTTP_CALL_TIMEOUT = 10
 CONTENT_TYPE = "application/json"
 

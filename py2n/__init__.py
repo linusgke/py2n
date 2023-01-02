@@ -84,7 +84,7 @@ class Py2NDevice:
         """Restart device."""
         if not self.initialized:
             raise NotInitialized
-        
+
         try:
             await restart(self.aiohttp_session, self.options)
         except Py2NError as err:

@@ -21,8 +21,10 @@ class NotInitialized(Py2NError):
 class DeviceConnectionError(Py2NError):
     """Raised to indicate connection errors."""
 
+
 class DeviceUnsupportedError(Py2NError):
     """Raised to indicate unsupported or non-2N device."""
+
 
 class ApiError(Enum):
     NOT_SUPPORTED = 1

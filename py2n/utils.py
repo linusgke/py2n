@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import logging
 import aiohttp
+import asyncio
 
 from typing import Any, List
 
 from .const import (
-    CONNECT_ERRORS,
     HTTP_CALL_TIMEOUT,
     CONTENT_TYPE,
     API_SYSTEM_INFO,
@@ -128,20 +128,24 @@ async def api_request(
             raise DeviceUnsupportedError("invalid content type")
 
         result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
+    except (asyncio.exceptions.TimeoutError, aiohttp.ClientConnectionError) as err:
         error = DeviceConnectionError(err)
         _LOGGER.debug("host %s: connect error: %r", options.host, error)
         raise error from err
 
     if "success" not in result:
-        raise DeviceUnsupportedError("response malformed")
+        error = DeviceUnsupportedError("response malformed")
+        _LOGGER.debug("host %s: api error: %r", options.host, error)
+        raise error
 
     if not result["success"]:
         code = result["error"]["code"]
-        error = ApiError(code)
+        try:
+            error = ApiError(code)
+            err = DeviceApiError(error)
+        except ValueError:
+            err = DeviceUnsupportedError("invalid error code")
 
-        # TODO handle invalid error code
-        err = DeviceApiError(error)
         _LOGGER.debug("host %s: api error: %r", options.host, err)
         raise err
 
