@@ -9,6 +9,7 @@ from typing import Any, List
 from .const import (
     CONNECT_ERRORS,
     HTTP_CALL_TIMEOUT,
+    CONTENT_TYPE,
     API_SYSTEM_INFO,
     API_SYSTEM_STATUS,
     API_SYSTEM_RESTART,
@@ -19,7 +20,12 @@ from .const import (
 
 from .model import Py2NConnectionData
 
-from .exceptions import Py2NError, DeviceConnectionError, InvalidAuthError
+from .exceptions import (
+    DeviceConnectionError,
+    DeviceUnsupportedError,
+    ApiError,
+    DeviceApiError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,21 +35,13 @@ async def get_info(
 ) -> dict[str, Any]:
     """Get info from device through REST call."""
     try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_SYSTEM_INFO}",
-            raise_for_status=True,
-            timeout=HTTP_CALL_TIMEOUT,
-        ) as response:
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
+        result = await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_INFO}"
+        )
+    except DeviceApiError as err:
+        raise
 
-    if not result["success"]:
-        raise Py2NError("request unsucessful")
-
-    return result["result"]
+    return result
 
 
 async def get_status(
@@ -51,27 +49,13 @@ async def get_status(
 ) -> dict[str, Any]:
     """Get status from device through REST call."""
     try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_SYSTEM_STATUS}",
-            timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth,
-        ) as response:
-            if response.status == 401:
-                raise InvalidAuthError("auth missing and required")
-
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
-    except InvalidAuthError as err:
-        _LOGGER.debug("host %s: error: %r", options, error)
+        result = await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_STATUS}"
+        )
+    except DeviceApiError as err:
         raise
 
-    if not result["success"]:
-        raise Py2NError("request unsucessful")
-
-    return result["result"]
+    return result
 
 
 async def restart(
@@ -79,53 +63,11 @@ async def restart(
 ) -> None:
     """Restart device through REST call."""
     try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_SYSTEM_RESTART}",
-            timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth,
-        ) as response:
-            if response.status == 401:
-                raise InvalidAuthError("auth missing and required")
-
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
-    except InvalidAuthError as err:
-        _LOGGER.debug("host %s: error: %r", options, error)
+        await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_RESTART}"
+        )
+    except DeviceApiError as err:
         raise
-
-    if not result["success"]:
-        raise Py2NError("request unsucessful")
-
-
-async def get_switches(
-    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
-) -> List[Any]:
-    """Get switches from device through REST call."""
-    try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_SWITCH_STATUS}",
-            timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth,
-        ) as response:
-            if response.status == 401:
-                raise InvalidAuthError("auth missing and required")
-
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
-    except InvalidAuthError as err:
-        _LOGGER.debug("host %s: error: %r", options, error)
-        raise
-
-    if not result["success"]:
-        raise Py2NError("request unsucessful")
-
-    return result["result"]["switches"]
 
 
 async def test_audio(
@@ -133,25 +75,28 @@ async def test_audio(
 ) -> None:
     """Test device audio through REST call."""
     try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_AUDIO_TEST}",
-            timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth,
-        ) as response:
-            if response.status == 401:
-                raise InvalidAuthError("auth missing and required")
-
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
-    except InvalidAuthError as err:
-        _LOGGER.debug("host %s: error: %r", options, error)
+        await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_AUDIO_TEST}"
+        )
+    except DeviceApiError as err:
         raise
 
-    if not result["success"]:
-        raise Py2NError("request unsucessful")
+
+async def get_switches(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> List[Any]:
+    """Get switches from device through REST call."""
+    try:
+        result = await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_SWITCH_STATUS}"
+        )
+    except DeviceApiError as err:
+        # some devices don't offer switches
+        if err.error == ApiError.NOT_SUPPORTED:
+            return []
+        raise
+
+    return result["switches"]
 
 
 async def set_switch(
@@ -159,25 +104,46 @@ async def set_switch(
     options: Py2NConnectionData,
     switch_id: int,
     on: bool,
-) -> List[Any]:
-    """Set switch value of device through REST call."""
+) -> None:
+    """Set switch value of device via REST call."""
     try:
-        async with aiohttp_session.get(
-            f"http://{options.ip_address}{API_SWITCH_CONTROL}?switch={switch_id}&action={'on' if on else 'off'}",
-            timeout=HTTP_CALL_TIMEOUT,
-            auth=options.auth,
-        ) as response:
-            if response.status == 401:
-                raise InvalidAuthError("auth missing and required")
-
-            result: dict[str, Any] = await response.json()
-    except CONNECT_ERRORS as err:
-        error = DeviceConnectionError(err)
-        _LOGGER.debug("host %s: error: %r", options.ip_address, error)
-        raise error from err
-    except InvalidAuthError as err:
-        _LOGGER.debug("host %s: error: %r", options, error)
+        await api_request(
+            aiohttp_session,
+            options,
+            f"http://{options.host}{API_SWITCH_CONTROL}?switch={switch_id}&action={'on' if on else 'off'}",
+        )
+    except DeviceApiError as err:
         raise
 
+
+async def api_request(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, url: str
+) -> dict[str, Any] | None:
+    """Perform REST call to device."""
+    try:
+        response = await aiohttp_session.get(
+            url, timeout=HTTP_CALL_TIMEOUT, auth=options.auth
+        )
+        if response.content_type != CONTENT_TYPE:
+            raise DeviceUnsupportedError("invalid content type")
+
+        result: dict[str, Any] = await response.json()
+    except CONNECT_ERRORS as err:
+        error = DeviceConnectionError(err)
+        _LOGGER.debug("host %s: connect error: %r", options.host, error)
+        raise error from err
+
+    if "success" not in result:
+        raise DeviceUnsupportedError("response malformed")
+
     if not result["success"]:
-        raise Py2NError("request unsucessful")
+        code = result["error"]["code"]
+        error = ApiError(code)
+
+        # TODO handle invalid error code
+        err = DeviceApiError(error)
+        _LOGGER.debug("host %s: api error: %r", options.host, err)
+        raise err
+
+    if "result" in result:
+        return result["result"]

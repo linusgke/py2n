@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import aiohttp
 
 from typing import Any, List
@@ -13,8 +12,6 @@ from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 from .exceptions import NotInitialized, Py2NError
 
 from .utils import get_info, get_status, restart, test_audio, get_switches, set_switch
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class Py2NDevice:
@@ -51,6 +48,7 @@ class Py2NDevice:
             self._initializing = False
 
     async def update(self) -> None:
+        """Update device data."""
         try:
             info: dict[str, Any] = await get_info(self.aiohttp_session, self.options)
             status: dict[str, Any] = await get_status(
@@ -71,6 +69,8 @@ class Py2NDevice:
                 name=info["deviceName"],
                 model=info["variant"],
                 serial=info["serialNumber"],
+                host=self.options.host,
+                mac=info["macAddr"],
                 firmware=f"{info['swVersion']}-{info['buildType']}",
                 hardware=info["hwVersion"],
                 uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
@@ -81,6 +81,10 @@ class Py2NDevice:
             raise
 
     async def restart(self) -> None:
+        """Restart device."""
+        if not self.initialized:
+            raise NotInitialized
+        
         try:
             await restart(self.aiohttp_session, self.options)
         except Py2NError as err:
@@ -88,6 +92,10 @@ class Py2NDevice:
             raise
 
     async def audio_test(self) -> None:
+        """Test audio."""
+        if not self.initialized:
+            raise NotInitialized
+
         try:
             await test_audio(self.aiohttp_session, self.options)
         except Py2NError as err:
@@ -95,6 +103,10 @@ class Py2NDevice:
             raise
 
     async def set_switch(self, switch_id, on) -> None:
+        """Set switch status."""
+        if not self.initialized:
+            raise NotInitialized
+
         if not self._data.switches:
             raise Py2NError("no switches configured")
 
@@ -108,6 +120,10 @@ class Py2NDevice:
             raise
 
     def get_switch(self, switch_id) -> bool:
+        """Get switch status."""
+        if not self.initialized:
+            raise NotInitialized
+
         if not self._data.switches:
             raise Py2NError("no switches configured")
 
@@ -116,10 +132,12 @@ class Py2NDevice:
 
         return self._data.switches[switch_id - 1].active
 
-    @property
-    def ip_address(self) -> str:
-        """Device ip address."""
-        return self.options.ip_address
+    async def close(self) -> None:
+        """Close http session."""
+        if not self.initialized:
+            raise NotInitialized
+
+        await self.aiohttp_session.close()
 
     @property
     def data(self) -> Py2NDeviceData:

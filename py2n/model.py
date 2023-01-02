@@ -1,20 +1,17 @@
 """Models for 2N library."""
 from __future__ import annotations
-from typing import List
-from enum import Enum
 
 import aiohttp
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
 class Py2NConnectionData:
     """Data for connection with 2N device."""
 
-    ip_address: str
+    host: str
     username: str | None = None
     password: str | None = None
     auth: aiohttp.BasicAuth | None = None
@@ -46,7 +43,9 @@ class Py2NDeviceData:
     name: str
     model: str
     serial: str
+    host: str
+    mac: str
     firmware: str
     hardware: str
     uptime: datetime
-    switches: List[Py2NDeviceSwitch]
+    switches: list[Py2NDeviceSwitch]
