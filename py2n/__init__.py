@@ -120,7 +120,13 @@ class Py2NDevice:
         if not self._data.switches:
             raise Py2NError("no switches configured")
 
-        if switch_id < 1 | switch_id > len(self._data.switches):
+        switch_exists = False
+        for switch in self._data.switches:
+            if switch_id == switch["switch"]:
+                switch_exists = True
+                if not switch.enabled:
+                    raise Py2NError("switch disabled")
+        if not switch_exists:
             raise Py2NError("invalid switch id")
 
         try:
@@ -137,7 +143,7 @@ class Py2NDevice:
         if not self._data.switches:
             raise Py2NError("no switches configured")
 
-        if switch_id < 1 or switch_id > len(self._data.switches):
+        if switch_id not in [switch.id for switch in self._data.switches]:
             raise Py2NError("invalid switch id")
 
         return self._data.switches[switch_id - 1].active
