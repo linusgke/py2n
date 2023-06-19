@@ -11,7 +11,7 @@ from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
 from .exceptions import NotInitialized, Py2NError
 
-from .utils import get_info, get_status, restart, test_audio, get_switches, set_switch
+from .utils import get_info, get_status, restart, test_audio, get_switches, get_switch_caps , set_switch
 
 
 class Py2NDevice:
@@ -55,13 +55,23 @@ class Py2NDevice:
                 self.aiohttp_session, self.options
             )
             switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
+            switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
 
             pySwitches = []
 
             for switch in switches:
+                for caps in switch_caps:
+                    if caps["switch"] == switch["switch"]:
+                        enabled = caps["enabled"]
+                        mode = caps["mode"] if enabled else None
+                        break
                 pySwitches.append(
                     Py2NDeviceSwitch(
-                        switch["switch"], switch["active"], switch["locked"]
+                        id= switch["switch"],
+                        enabled= enabled,
+                        active= switch["active"],
+                        locked=switch["locked"],
+                        mode=mode,
                     )
                 )
 
