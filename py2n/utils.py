@@ -13,6 +13,7 @@ from .const import (
     API_SYSTEM_INFO,
     API_SYSTEM_STATUS,
     API_SYSTEM_RESTART,
+    API_SWITCH_CAPS,
     API_SWITCH_STATUS,
     API_SWITCH_CONTROL,
     API_AUDIO_TEST,
@@ -89,6 +90,22 @@ async def get_switches(
     try:
         result = await api_request(
             aiohttp_session, options, f"http://{options.host}{API_SWITCH_STATUS}"
+        )
+    except DeviceApiError as err:
+        # some devices don't offer switches
+        if err.error == ApiError.NOT_SUPPORTED:
+            return []
+        raise
+
+    return result["switches"]
+
+async def get_switch_caps(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> List[Any]:
+    """Get switch caps from device through REST call."""
+    try:
+        result = await api_request(
+            aiohttp_session, options, f"http://{options.host}{API_SWITCH_CAPS}"
         )
     except DeviceApiError as err:
         # some devices don't offer switches
