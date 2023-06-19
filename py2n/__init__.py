@@ -15,9 +15,9 @@ from .utils import get_info, get_status, restart, test_audio, get_switches, get_
 
 
 class Py2NDevice:
-    def __init__(self, aiohttp_session, options: Py2NConnectionData):
+    def __init__(self, aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData):
         """Device init."""
-        self.aiohttp_session: aiohttp.ClientSession = aiohttp_session
+        self.aiohttp_session = aiohttp_session
         self.options = options
         self.initialized: bool = False
 
@@ -112,7 +112,7 @@ class Py2NDevice:
             self._last_error = err
             raise
 
-    async def set_switch(self, switch_id, on) -> None:
+    async def set_switch(self, switch_id: int, on) -> None:
         """Set switch status."""
         if not self.initialized:
             raise NotInitialized
@@ -127,7 +127,7 @@ class Py2NDevice:
             self._last_error = err
             raise
 
-    def get_switch(self, switch_id) -> bool:
+    def get_switch(self, switch_id: int) -> bool:
         """Get switch status."""
         if not self.initialized:
             raise NotInitialized
@@ -135,7 +135,7 @@ class Py2NDevice:
         switch = self._find_switch(switch_id)
         return switch.active
 
-    def _find_switch(self, switch_id) -> Py2NDeviceSwitch:
+    def _find_switch(self, switch_id: int) -> Py2NDeviceSwitch:
         if not self._data.switches or len(self._data.switches) == 0:
             raise Py2NError("no switches configured")
 
