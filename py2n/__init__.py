@@ -11,13 +11,13 @@ from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
 from .exceptions import NotInitialized, Py2NError
 
-from .utils import get_info, get_status, restart, test_audio, get_switches, set_switch
+from .utils import get_info, get_status, restart, test_audio, get_switches, get_switch_caps , set_switch
 
 
 class Py2NDevice:
-    def __init__(self, aiohttp_session, options: Py2NConnectionData):
+    def __init__(self, aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData):
         """Device init."""
-        self.aiohttp_session: aiohttp.ClientSession = aiohttp_session
+        self.aiohttp_session = aiohttp_session
         self.options = options
         self.initialized: bool = False
 
@@ -55,13 +55,23 @@ class Py2NDevice:
                 self.aiohttp_session, self.options
             )
             switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
+            switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
 
             pySwitches = []
 
             for switch in switches:
+                for caps in switch_caps:
+                    if caps["switch"] == switch["switch"]:
+                        enabled = caps["enabled"]
+                        mode = caps["mode"] if enabled else None
+                        break
                 pySwitches.append(
                     Py2NDeviceSwitch(
-                        switch["switch"], switch["active"], switch["locked"]
+                        id= switch["switch"],
+                        enabled= enabled,
+                        active= switch["active"],
+                        locked=switch["locked"],
+                        mode=mode,
                     )
                 )
 
@@ -102,16 +112,14 @@ class Py2NDevice:
             self._last_error = err
             raise
 
-    async def set_switch(self, switch_id, on) -> None:
+    async def set_switch(self, switch_id: int, on) -> None:
         """Set switch status."""
         if not self.initialized:
             raise NotInitialized
 
-        if not self._data.switches:
-            raise Py2NError("no switches configured")
-
-        if switch_id < 1 | switch_id > len(self._data.switches):
-            raise Py2NError("invalid switch id")
+        switch = self._find_switch(switch_id)
+        if not switch.enabled:
+            raise Py2NError("switch disabled")
 
         try:
             await set_switch(self.aiohttp_session, self.options, switch_id, on)
@@ -119,18 +127,22 @@ class Py2NDevice:
             self._last_error = err
             raise
 
-    def get_switch(self, switch_id) -> bool:
+    def get_switch(self, switch_id: int) -> bool:
         """Get switch status."""
         if not self.initialized:
             raise NotInitialized
 
-        if not self._data.switches:
+        switch = self._find_switch(switch_id)
+        return switch.active
+
+    def _find_switch(self, switch_id: int) -> Py2NDeviceSwitch:
+        if not self._data.switches or len(self._data.switches) == 0:
             raise Py2NError("no switches configured")
 
-        if switch_id < 1 or switch_id > len(self._data.switches):
-            raise Py2NError("invalid switch id")
-
-        return self._data.switches[switch_id - 1].active
+        for switch in self._data.switches:
+            if switch.id == switch_id:
+                return switch
+        raise Py2NError("invalid switch id")
 
     async def close(self) -> None:
         """Close http session."""

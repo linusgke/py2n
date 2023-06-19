@@ -35,7 +35,7 @@ async def run(websession):
     device = await Py2NDevice.create(
         websession,
         Py2NConnectionData(
-            ip_address="192.168.1.69",
+            host="192.168.1.69",
             username="username",
             password="password",
         ),

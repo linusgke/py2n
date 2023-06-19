@@ -32,8 +32,10 @@ class Py2NDeviceSwitch:
     """Representation of 2N device switch."""
 
     id: int
+    enabled: bool
     active: bool
     locked: bool
+    mode: str | None #inactive switches do not return a value for "mode"
 
 
 @dataclass
