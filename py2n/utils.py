@@ -167,6 +167,7 @@ async def get_ports(aiohttp_session: aiohttp.ClientSession, options: Py2NConnect
         for status in statuses:
             if status["port"] == cap["port"]:
                 ports.append(Py2NDevicePort(cap["port"], cap["type"], status["state"]))
+                break
     return ports
 
 async def set_port(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, port_id: str, on: bool) -> None:
