@@ -20,6 +20,7 @@ from .utils import (
     get_switch_caps,
     set_switch,
     get_ports,
+    get_port_status,
     set_port
     )
 
@@ -102,6 +103,23 @@ class Py2NDevice:
         except Py2NError as err:
             self._last_error = err
             raise
+
+    async def update_switch_status(self) -> None:
+        statuses = await get_switches(self.aiohttp_session, self.options)
+        for switch_status in statuses:
+            for switch in self._data.switches:
+                if switch.id == switch_status["switch"]:
+                    switch.active = switch_status["active"]
+                    switch.locked = switch_status["locked"]
+                    break
+
+    async def update_port_status(self) -> None:
+        statuses = await get_port_status(self.aiohttp_session, self.options)
+        for port_status in statuses:
+            for port in self._data.ports:
+                if port.id == port_status["port"]:
+                    port.state = port_status["state"]
+                    break
 
     async def restart(self) -> None:
         """Restart device."""
