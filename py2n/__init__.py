@@ -11,7 +11,17 @@ from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
 from .exceptions import NotInitialized, Py2NError
 
-from .utils import get_info, get_status, restart, test_audio, get_switches, get_switch_caps , set_switch
+from .utils import (
+    get_info,
+    get_status,
+    restart,
+    test_audio,
+    get_switches,
+    get_switch_caps,
+    set_switch,
+    get_ports,
+    set_port
+    )
 
 
 class Py2NDevice:
@@ -75,6 +85,8 @@ class Py2NDevice:
                     )
                 )
 
+            ports = await get_ports(self.aiohttp_session, self.options)
+
             self._data = Py2NDeviceData(
                 name=info["deviceName"],
                 model=info["variant"],
@@ -85,6 +97,7 @@ class Py2NDevice:
                 hardware=info["hwVersion"],
                 uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
                 switches=pySwitches,
+                ports=ports,
             )
         except Py2NError as err:
             self._last_error = err
@@ -112,7 +125,7 @@ class Py2NDevice:
             self._last_error = err
             raise
 
-    async def set_switch(self, switch_id: int, on) -> None:
+    async def set_switch(self, switch_id: int, on: bool) -> None:
         """Set switch status."""
         if not self.initialized:
             raise NotInitialized
@@ -126,6 +139,20 @@ class Py2NDevice:
         except Py2NError as err:
             self._last_error = err
             raise
+
+    async def set_port(self, port_id: str, on: bool) -> None:
+        """Set output port status"""
+        if not self.initialized:
+            raise NotInitialized
+
+        for port in self._data.ports:
+            if port.id == port_id:
+                if port.type == "output":
+                    await set_port(self.aiohttp_session, self.options, port_id, on)
+                    return
+                raise Py2NError("invalid operation: unable to set state on input port")
+        raise Py2NError("unknown port id")
+
 
     def get_switch(self, switch_id: int) -> bool:
         """Get switch status."""

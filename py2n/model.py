@@ -37,6 +37,12 @@ class Py2NDeviceSwitch:
     locked: bool
     mode: str | None #inactive switches do not return a value for "mode"
 
+@dataclass
+class Py2NDevicePort:
+    """2N Device IO port"""
+    id: str
+    type: str
+    state: bool
 
 @dataclass
 class Py2NDeviceData:
@@ -51,3 +57,4 @@ class Py2NDeviceData:
     hardware: str
     uptime: datetime
     switches: list[Py2NDeviceSwitch]
+    ports: list[Py2NDevicePort]
