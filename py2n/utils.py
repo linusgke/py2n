@@ -16,10 +16,13 @@ from .const import (
     API_SWITCH_CAPS,
     API_SWITCH_STATUS,
     API_SWITCH_CONTROL,
+    API_IO_CAPS,
+    API_IO_CONTROL,
+    API_IO_STATUS,
     API_AUDIO_TEST,
 )
 
-from .model import Py2NConnectionData
+from .model import Py2NConnectionData, Py2NDevicePort
 
 from .exceptions import (
     DeviceConnectionError,
@@ -132,6 +135,50 @@ async def set_switch(
     except DeviceApiError as err:
         raise
 
+async def get_port_caps(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData) ->  list[dict]:
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"http://{options.host}{API_IO_CAPS}"
+        )
+    except DeviceApiError as err:
+        raise
+
+    return result["ports"]
+
+async def get_port_status(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData) ->  list[dict]:
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"http://{options.host}{API_IO_STATUS}"
+        )
+    except DeviceApiError as err:
+        raise
+
+    return result["ports"]
+
+async def get_ports(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData) ->  list[Py2NDevicePort]:
+    caps = await get_port_caps(aiohttp_session, options)
+    statuses = await get_port_status(aiohttp_session, options)
+    ports = []
+    for cap in caps:
+        for status in statuses:
+            if status["port"] == cap["port"]:
+                ports.append(Py2NDevicePort(cap["port"], cap["type"], status["state"]))
+                break
+    return ports
+
+async def set_port(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, port_id: str, on: bool) -> None:
+    try:
+        await api_request(
+            aiohttp_session,
+            options,
+            f"http://{options.host}{API_IO_CONTROL}?port={port_id}&action={'on' if on else 'off'}",
+        )
+    except DeviceApiError as err:
+        raise
 
 async def api_request(
     aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, url: str
