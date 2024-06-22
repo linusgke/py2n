@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import aiohttp
 
 from typing import Any, List
@@ -21,9 +22,14 @@ from .utils import (
     set_switch,
     get_ports,
     get_port_status,
-    set_port
+    set_port,
+    get_log_caps,
+    log_subscribe,
+    log_unsubscribe,
+    log_pull
     )
 
+_LOGGER = logging.getLogger(__name__)
 
 class Py2NDevice:
     def __init__(self, aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData):
@@ -67,6 +73,7 @@ class Py2NDevice:
             )
             switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
             switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
+            log_caps: List[Any] = await get_log_caps(self.aiohttp_session, self.options)
 
             pySwitches = []
 
@@ -98,6 +105,7 @@ class Py2NDevice:
                 hardware=info["hwVersion"],
                 uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
                 switches=pySwitches,
+                log_caps=log_caps,
                 ports=ports,
             )
         except Py2NError as err:
@@ -171,6 +179,28 @@ class Py2NDevice:
                 raise Py2NError("invalid operation: unable to set state on input port")
         raise Py2NError("unknown port id")
 
+    async def log_subscribe(self, include: str="new", filter: list[str]=[], duration: int=90) -> int:
+        """subscribe to Log channel."""
+        if not self.initialized:
+            raise NotInitialized
+
+        channel_id = await log_subscribe(self.aiohttp_session, self.options, include, filter, duration)
+        return channel_id
+
+    async def log_unsubscribe(self, id: int) -> None:
+        """unsubscribe from Log channel."""
+        if not self.initialized:
+            raise NotInitialized
+
+        await log_unsubscribe(self.aiohttp_session, self.options, id)
+
+    async def log_pull(self, id: int, timeout: int=0) -> None:
+        """pull from Log channel."""
+        if not self.initialized:
+            raise NotInitialized
+
+        messages = await log_pull(self.aiohttp_session, self.options, id, timeout)
+        return messages
 
     def get_switch(self, switch_id: int) -> bool:
         """Get switch status."""
