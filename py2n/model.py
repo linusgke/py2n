@@ -15,6 +15,7 @@ class Py2NConnectionData:
     username: str | None = None
     password: str | None = None
     auth: aiohttp.BasicAuth | None = None
+    protocol: str | None = "http"
 
     def __post_init__(self) -> None:
         """Call after initialization."""
@@ -58,3 +59,4 @@ class Py2NDeviceData:
     uptime: datetime
     switches: list[Py2NDeviceSwitch]
     ports: list[Py2NDevicePort]
+    log_caps: list[str]

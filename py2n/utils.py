@@ -20,6 +20,10 @@ from .const import (
     API_IO_CONTROL,
     API_IO_STATUS,
     API_AUDIO_TEST,
+    API_LOG_CAPS,
+    API_LOG_SUBSCRIBE,
+    API_LOG_UNSUBSCRIBE,
+    API_LOG_PULL,
 )
 
 from .model import Py2NConnectionData, Py2NDevicePort
@@ -40,7 +44,7 @@ async def get_info(
     """Get info from device through REST call."""
     try:
         result = await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_INFO}"
+            aiohttp_session, options, f"{API_SYSTEM_INFO}"
         )
     except DeviceApiError as err:
         raise
@@ -54,12 +58,83 @@ async def get_status(
     """Get status from device through REST call."""
     try:
         result = await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_STATUS}"
+            aiohttp_session, options, f"{API_SYSTEM_STATUS}"
         )
     except DeviceApiError as err:
         raise
 
     return result
+
+async def get_log_caps(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> List[str]:
+    """Get log caps from device through REST call."""
+    try:
+        result = await api_request(
+            aiohttp_session, options, f"{API_LOG_CAPS}"
+        )
+    except DeviceApiError as err:
+        # some devices don't offer switches
+        if err.error == ApiError.NOT_SUPPORTED:
+            return []
+        raise
+
+    return result["events"]
+
+async def log_subscribe(
+    aiohttp_session: aiohttp.ClientSession,
+    options: Py2NConnectionData,
+    include: str,
+    filter: list[str],
+    duration: int,
+) -> int:
+    """Subscribe to log events REST call."""
+    filterstring = "" if filter is None else ",".join(filter)
+    filterarg = "" if filterstring == "" else f"&filter={filterstring}"
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"{API_LOG_SUBSCRIBE}?include={include}&duration={duration}{filterarg}",
+        )
+    except DeviceApiError as err:
+        raise
+    
+    return result["id"]
+
+async def log_unsubscribe(
+    aiohttp_session: aiohttp.ClientSession,
+    options: Py2NConnectionData,
+    id: int,
+) -> None:
+    """Unubscribe to log events REST call."""
+    try:
+        await api_request(
+            aiohttp_session,
+            options,
+            f"{API_LOG_UNSUBSCRIBE}?id={id}",
+        )
+    except DeviceApiError as err:
+        raise
+
+async def log_pull(
+    aiohttp_session: aiohttp.ClientSession,
+    options: Py2NConnectionData,
+    id: int,
+    timeout: int=0,
+) -> list[dict]:
+    """Pull log events REST call."""
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"{API_LOG_PULL}?id={id}&timeout={timeout}",
+            timeout+5
+        )
+    except DeviceApiError as err:
+        raise
+    
+    return result["events"]
 
 
 async def restart(
@@ -68,7 +143,7 @@ async def restart(
     """Restart device through REST call."""
     try:
         await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_SYSTEM_RESTART}"
+            aiohttp_session, options, f"{API_SYSTEM_RESTART}"
         )
     except DeviceApiError as err:
         raise
@@ -80,7 +155,7 @@ async def test_audio(
     """Test device audio through REST call."""
     try:
         await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_AUDIO_TEST}"
+            aiohttp_session, options, f"{API_AUDIO_TEST}"
         )
     except DeviceApiError as err:
         raise
@@ -92,7 +167,7 @@ async def get_switches(
     """Get switches from device through REST call."""
     try:
         result = await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_SWITCH_STATUS}"
+            aiohttp_session, options, f"{API_SWITCH_STATUS}"
         )
     except DeviceApiError as err:
         # some devices don't offer switches
@@ -108,7 +183,7 @@ async def get_switch_caps(
     """Get switch caps from device through REST call."""
     try:
         result = await api_request(
-            aiohttp_session, options, f"http://{options.host}{API_SWITCH_CAPS}"
+            aiohttp_session, options, f"{API_SWITCH_CAPS}"
         )
     except DeviceApiError as err:
         # some devices don't offer switches
@@ -130,7 +205,7 @@ async def set_switch(
         await api_request(
             aiohttp_session,
             options,
-            f"http://{options.host}{API_SWITCH_CONTROL}?switch={switch_id}&action={'on' if on else 'off'}",
+            f"{API_SWITCH_CONTROL}?switch={switch_id}&action={'on' if on else 'off'}",
         )
     except DeviceApiError as err:
         raise
@@ -140,7 +215,7 @@ async def get_port_caps(aiohttp_session: aiohttp.ClientSession, options: Py2NCon
         result = await api_request(
             aiohttp_session,
             options,
-            f"http://{options.host}{API_IO_CAPS}"
+            f"{API_IO_CAPS}"
         )
     except DeviceApiError as err:
         raise
@@ -152,7 +227,7 @@ async def get_port_status(aiohttp_session: aiohttp.ClientSession, options: Py2NC
         result = await api_request(
             aiohttp_session,
             options,
-            f"http://{options.host}{API_IO_STATUS}"
+            f"{API_IO_STATUS}"
         )
     except DeviceApiError as err:
         raise
@@ -175,18 +250,20 @@ async def set_port(aiohttp_session: aiohttp.ClientSession, options: Py2NConnecti
         await api_request(
             aiohttp_session,
             options,
-            f"http://{options.host}{API_IO_CONTROL}?port={port_id}&action={'on' if on else 'off'}",
+            f"{API_IO_CONTROL}?port={port_id}&action={'on' if on else 'off'}",
         )
     except DeviceApiError as err:
         raise
 
 async def api_request(
-    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, url: str
+        aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, endpoint: str, timeout: int = HTTP_CALL_TIMEOUT
 ) -> dict[str, Any] | None:
     """Perform REST call to device."""
+
+    url=f"{options.protocol}://{options.host}{endpoint}"
     try:
         response = await aiohttp_session.get(
-            url, timeout=HTTP_CALL_TIMEOUT, auth=options.auth
+            url, timeout=timeout, auth=options.auth, ssl=False
         )
         if response.content_type != CONTENT_TYPE:
             raise DeviceUnsupportedError("invalid content type")
