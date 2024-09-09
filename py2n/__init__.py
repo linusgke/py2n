@@ -78,20 +78,21 @@ class Py2NDevice:
             pySwitches = []
 
             for switch in switches:
-                for caps in switch_caps:
-                    if caps["switch"] == switch["switch"]:
-                        enabled = caps["enabled"]
-                        mode = caps["mode"] if enabled else None
-                        break
-                pySwitches.append(
-                    Py2NDeviceSwitch(
-                        id= switch["switch"],
-                        enabled= enabled,
-                        active= switch["active"],
-                        locked=switch["locked"],
-                        mode=mode,
+                if switch['active']:
+                    for caps in switch_caps:
+                        if caps["switch"] == switch["switch"]:
+                            enabled = caps["enabled"]
+                            mode = caps["mode"] if enabled else None
+                            break
+                    pySwitches.append(
+                        Py2NDeviceSwitch(
+                            id= switch["switch"],
+                            enabled= enabled,
+                            active= switch["active"],
+                            locked=switch["locked"],
+                            mode=mode,
+                        )
                     )
-                )
 
             ports = await get_ports(self.aiohttp_session, self.options)
 
