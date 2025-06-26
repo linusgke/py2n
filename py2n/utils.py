@@ -280,6 +280,7 @@ async def api_request(
         raise error
 
     if not result["success"]:
+        _LOGGER.debug("host %s: api unsuccessfull: %r", options.host, result)
         code = result["error"]["code"]
         try:
             error = ApiError(code)

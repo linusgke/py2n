@@ -6,7 +6,7 @@ import logging
 import aiohttp
 
 from typing import Any, List
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
@@ -68,9 +68,6 @@ class Py2NDevice:
         """Update device data."""
         try:
             info: dict[str, Any] = await get_info(self.aiohttp_session, self.options)
-            status: dict[str, Any] = await get_status(
-                self.aiohttp_session, self.options
-            )
             switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
             switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
             log_caps: List[Any] = await get_log_caps(self.aiohttp_session, self.options)
@@ -104,7 +101,7 @@ class Py2NDevice:
                 mac=info["macAddr"],
                 firmware=f"{info['swVersion']}-{info['buildType']}",
                 hardware=info["hwVersion"],
-                uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
+                uptime=await self._get_uptime(),
                 switches=pySwitches,
                 log_caps=log_caps,
                 ports=ports,
@@ -129,6 +126,17 @@ class Py2NDevice:
                 if port.id == port_status["port"]:
                     port.state = port_status["state"]
                     break
+
+    async def _get_uptime(self) -> datetime:
+        status = await get_status(self.aiohttp_session, self.options)
+        new_uptime = datetime.now(UTC).replace(microsecond=0) - timedelta(seconds=status["upTime"])
+        return new_uptime
+
+    async def update_system_status(self) -> None:
+        new_uptime = await self._get_uptime()
+        delta = new_uptime - self._data.uptime
+        if abs(delta.total_seconds()) > 5:
+            self._data.uptime=new_uptime
 
     async def restart(self) -> None:
         """Restart device."""
