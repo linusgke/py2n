@@ -26,7 +26,10 @@ from .utils import (
     get_log_caps,
     log_subscribe,
     log_unsubscribe,
-    log_pull
+    log_pull,
+    get_dir_template,
+    query_dir,
+    update_dir
     )
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,30 +71,34 @@ class Py2NDevice:
         """Update device data."""
         try:
             info: dict[str, Any] = await get_info(self.aiohttp_session, self.options)
-            switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
-            switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
             log_caps: List[Any] = await get_log_caps(self.aiohttp_session, self.options)
-
             pySwitches = []
 
-            for switch in switches:
-                if switch['active']:
-                    for caps in switch_caps:
-                        if caps["switch"] == switch["switch"]:
-                            enabled = caps["enabled"]
-                            mode = caps["mode"] if enabled else None
-                            break
-                    pySwitches.append(
-                        Py2NDeviceSwitch(
-                            id= switch["switch"],
-                            enabled= enabled,
-                            active= switch["active"],
-                            locked=switch["locked"],
-                            mode=mode,
+            if(self.options.unprivileged):
+                ports = []
+                uptime = None
+            else:
+                ports = await get_ports(self.aiohttp_session, self.options)
+                uptime = await self._get_uptime()
+                switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
+                switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
+                for switch in switches:
+                    if switch['active']:
+                        for caps in switch_caps:
+                            if caps["switch"] == switch["switch"]:
+                                enabled = caps["enabled"]
+                                mode = caps["mode"] if enabled else None
+                                break
+                        pySwitches.append(
+                            Py2NDeviceSwitch(
+                                id= switch["switch"],
+                                enabled= enabled,
+                                active= switch["active"],
+                                locked=switch["locked"],
+                                mode=mode,
+                            )
                         )
-                    )
 
-            ports = await get_ports(self.aiohttp_session, self.options)
 
             self._data = Py2NDeviceData(
                 name=info["deviceName"],
@@ -101,7 +108,7 @@ class Py2NDevice:
                 mac=info["macAddr"],
                 firmware=f"{info['swVersion']}-{info['buildType']}",
                 hardware=info["hwVersion"],
-                uptime=await self._get_uptime(),
+                uptime=uptime,
                 switches=pySwitches,
                 log_caps=log_caps,
                 ports=ports,
@@ -218,6 +225,27 @@ class Py2NDevice:
 
         switch = self._find_switch(switch_id)
         return switch.active
+
+    async def get_dir_template(self) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await get_dir_template(self.aiohttp_session, self.options)
+        return result
+
+    async def query_dir(self, query: dict = {}) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await query_dir(self.aiohttp_session, self.options, query)
+        return result
+
+    async def update_dir(self, users: list = []) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await update_dir(self.aiohttp_session, self.options, users)
+        return result
 
     def _find_switch(self, switch_id: int) -> Py2NDeviceSwitch:
         if not self._data.switches or len(self._data.switches) == 0:

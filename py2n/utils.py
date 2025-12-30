@@ -24,6 +24,9 @@ from .const import (
     API_LOG_SUBSCRIBE,
     API_LOG_UNSUBSCRIBE,
     API_LOG_PULL,
+    API_DIR_TEMPLATE,
+    API_DIR_UPDATE,
+    API_DIR_QUERY,
 )
 
 from .model import Py2NConnectionData, Py2NDevicePort
@@ -255,15 +258,56 @@ async def set_port(aiohttp_session: aiohttp.ClientSession, options: Py2NConnecti
     except DeviceApiError as err:
         raise
 
+async def get_dir_template(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData) ->  list[dict]:
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"{API_DIR_TEMPLATE}"
+        )
+    except DeviceApiError as err:
+        raise
+
+    return result["users"]
+
+async def query_dir(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, query: dict) ->  list[dict]:
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"{API_DIR_QUERY}",
+            method = "POST",
+            json = query
+        )
+    except DeviceApiError as err:
+        raise
+
+    return result["users"]
+
+async def update_dir(aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, users: dict) ->  list[dict]:
+    try:
+        result = await api_request(
+            aiohttp_session,
+            options,
+            f"{API_DIR_UPDATE}",
+            method = "PUT",
+            json = {'users': users}
+        )
+    except DeviceApiError as err:
+        raise
+
+    return result["users"]
+
+
 async def api_request(
-        aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, endpoint: str, timeout: int = HTTP_CALL_TIMEOUT
+        aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData, endpoint: str, timeout: int = HTTP_CALL_TIMEOUT, method: str = "GET", data = None, json = None
 ) -> dict[str, Any] | None:
     """Perform REST call to device."""
 
     url=f"{options.protocol}://{options.host}{endpoint}"
     try:
-        response = await aiohttp_session.get(
-            url, timeout=timeout, auth=options.auth, ssl=False
+        response = await aiohttp_session.request(method,
+            url, timeout=timeout, auth=options.auth, ssl=False, data=data, json=json
         )
         if response.content_type != CONTENT_TYPE:
             raise DeviceUnsupportedError("invalid content type")
