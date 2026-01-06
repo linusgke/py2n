@@ -29,7 +29,8 @@ from .utils import (
     log_pull,
     get_dir_template,
     query_dir,
-    update_dir
+    update_dir,
+    api_request
     )
 
 _LOGGER = logging.getLogger(__name__)
@@ -255,6 +256,13 @@ class Py2NDevice:
             if switch.id == switch_id:
                 return switch
         raise Py2NError("invalid switch id")
+
+    async def api_request(endpoint: str, timeout: int = HTTP_CALL_TIMEOUT, method: str = "GET", data = None, json = None) -> dict[str, Any] | None:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await api_request(endpoint=endpoint, timeout=timeout, method=method, data=data,json=json)
+        return result
 
     async def close(self) -> None:
         """Close http session."""
