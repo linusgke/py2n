@@ -307,7 +307,7 @@ async def api_request(
     if endpoint.startswith("/"):
         endpoint=endpoint[1:]
 
-    if not endpoint.startswith("api/")
+    if not endpoint.startswith("api/"):
         endpoint="api/"+endpoint
 
     url=f"{options.protocol}://{options.host}/{endpoint}"
