@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone, UTC
 
 from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
 
+from .const import HTTP_CALL_TIMEOUT
+
 from .exceptions import NotInitialized, Py2NError
 
 from .utils import (
