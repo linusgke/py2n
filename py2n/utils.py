@@ -304,13 +304,19 @@ async def api_request(
 ) -> dict[str, Any] | None:
     """Perform REST call to device."""
 
-    url=f"{options.protocol}://{options.host}{endpoint}"
+    if endpoint.startswith("/"):
+        endpoint=endpoint[1:]
+
+    if not endpoint.startswith("api/")
+        endpoint="api/"+endpoint
+
+    url=f"{options.protocol}://{options.host}/{endpoint}"
     try:
         response = await aiohttp_session.request(method,
             url, timeout=timeout, auth=options.auth, ssl=False, data=data, json=json
         )
         if response.content_type != CONTENT_TYPE:
-            raise DeviceUnsupportedError("invalid content type")
+            raise DeviceUnsupportedError(f"invalid content type: {response.content_type}")
 
         result: dict[str, Any] = await response.json()
     except (asyncio.exceptions.TimeoutError, aiohttp.ClientConnectionError) as err:
