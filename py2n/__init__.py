@@ -263,7 +263,7 @@ class Py2NDevice:
         if not self.initialized:
             raise NotInitialized
 
-        result = await api_request(endpoint=endpoint, timeout=timeout, method=method, data=data,json=json)
+        result = await api_request(self.aiohttp_session, self.options, endpoint=endpoint, timeout=timeout, method=method, data=data,json=json)
         return result
 
     async def close(self) -> None:
