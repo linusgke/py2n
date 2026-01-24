@@ -259,7 +259,7 @@ class Py2NDevice:
                 return switch
         raise Py2NError("invalid switch id")
 
-    async def api_request(endpoint: str, timeout: int = HTTP_CALL_TIMEOUT, method: str = "GET", data = None, json = None) -> dict[str, Any] | None:
+    async def api_request(self, endpoint: str, timeout: int = HTTP_CALL_TIMEOUT, method: str = "GET", data = None, json = None) -> dict[str, Any] | None:
         if not self.initialized:
             raise NotInitialized
 
