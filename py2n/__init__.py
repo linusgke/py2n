@@ -6,9 +6,11 @@ import logging
 import aiohttp
 
 from typing import Any, List
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 from .model import Py2NDeviceData, Py2NDeviceSwitch, Py2NConnectionData
+
+from .const import HTTP_CALL_TIMEOUT
 
 from .exceptions import NotInitialized, Py2NError
 
@@ -26,7 +28,11 @@ from .utils import (
     get_log_caps,
     log_subscribe,
     log_unsubscribe,
-    log_pull
+    log_pull,
+    get_dir_template,
+    query_dir,
+    update_dir,
+    api_request
     )
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,33 +74,34 @@ class Py2NDevice:
         """Update device data."""
         try:
             info: dict[str, Any] = await get_info(self.aiohttp_session, self.options)
-            status: dict[str, Any] = await get_status(
-                self.aiohttp_session, self.options
-            )
-            switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
-            switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
             log_caps: List[Any] = await get_log_caps(self.aiohttp_session, self.options)
-
             pySwitches = []
 
-            for switch in switches:
-                if switch['active']:
-                    for caps in switch_caps:
-                        if caps["switch"] == switch["switch"]:
-                            enabled = caps["enabled"]
-                            mode = caps["mode"] if enabled else None
-                            break
-                    pySwitches.append(
-                        Py2NDeviceSwitch(
-                            id= switch["switch"],
-                            enabled= enabled,
-                            active= switch["active"],
-                            locked=switch["locked"],
-                            mode=mode,
+            if(self.options.unprivileged):
+                ports = []
+                uptime = None
+            else:
+                ports = await get_ports(self.aiohttp_session, self.options)
+                uptime = await self._get_uptime()
+                switch_caps: List[Any] = await get_switch_caps(self.aiohttp_session, self.options)
+                switches: List[Any] = await get_switches(self.aiohttp_session, self.options)
+                for switch in switches:
+                    if switch['active']:
+                        for caps in switch_caps:
+                            if caps["switch"] == switch["switch"]:
+                                enabled = caps["enabled"]
+                                mode = caps["mode"] if enabled else None
+                                break
+                        pySwitches.append(
+                            Py2NDeviceSwitch(
+                                id= switch["switch"],
+                                enabled= enabled,
+                                active= switch["active"],
+                                locked=switch["locked"],
+                                mode=mode,
+                            )
                         )
-                    )
 
-            ports = await get_ports(self.aiohttp_session, self.options)
 
             self._data = Py2NDeviceData(
                 name=info["deviceName"],
@@ -104,7 +111,7 @@ class Py2NDevice:
                 mac=info["macAddr"],
                 firmware=f"{info['swVersion']}-{info['buildType']}",
                 hardware=info["hwVersion"],
-                uptime=datetime.now(timezone.utc) - timedelta(seconds=status["upTime"]),
+                uptime=uptime,
                 switches=pySwitches,
                 log_caps=log_caps,
                 ports=ports,
@@ -129,6 +136,17 @@ class Py2NDevice:
                 if port.id == port_status["port"]:
                     port.state = port_status["state"]
                     break
+
+    async def _get_uptime(self) -> datetime:
+        status = await get_status(self.aiohttp_session, self.options)
+        new_uptime = datetime.now(UTC).replace(microsecond=0) - timedelta(seconds=status["upTime"])
+        return new_uptime
+
+    async def update_system_status(self) -> None:
+        new_uptime = await self._get_uptime()
+        delta = new_uptime - self._data.uptime
+        if abs(delta.total_seconds()) > 5:
+            self._data.uptime=new_uptime
 
     async def restart(self) -> None:
         """Restart device."""
@@ -211,6 +229,27 @@ class Py2NDevice:
         switch = self._find_switch(switch_id)
         return switch.active
 
+    async def get_dir_template(self) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await get_dir_template(self.aiohttp_session, self.options)
+        return result
+
+    async def query_dir(self, query: dict = {}) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await query_dir(self.aiohttp_session, self.options, query)
+        return result
+
+    async def update_dir(self, users: list = []) -> str:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await update_dir(self.aiohttp_session, self.options, users)
+        return result
+
     def _find_switch(self, switch_id: int) -> Py2NDeviceSwitch:
         if not self._data.switches or len(self._data.switches) == 0:
             raise Py2NError("no switches configured")
@@ -219,6 +258,13 @@ class Py2NDevice:
             if switch.id == switch_id:
                 return switch
         raise Py2NError("invalid switch id")
+
+    async def api_request(self, endpoint: str, timeout: int = HTTP_CALL_TIMEOUT, method: str = "GET", data = None, json = None) -> dict[str, Any] | None:
+        if not self.initialized:
+            raise NotInitialized
+
+        result = await api_request(self.aiohttp_session, self.options, endpoint=endpoint, timeout=timeout, method=method, data=data,json=json)
+        return result
 
     async def close(self) -> None:
         """Close http session."""
