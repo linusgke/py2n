@@ -4,15 +4,15 @@ from setuptools import setup
 
 PROJECT_DIR = Path(__file__).parent.resolve()
 README_FILE = PROJECT_DIR / "README.md"
-VERSION = "0.4.2"
+VERSION = "0.5.0"
 
 setup(
     name='py2n',
     version=VERSION,
     license="MIT",
-    url="https://github.com/elektr0nisch/py2n",
+    url="https://github.com/linusgke/py2n",
     author="Linus Groschke",
-    author_email="linus@elektronisch.dev",
+    author_email="mail@linusgke.de",
     description="Python library for 2N® devices",
     long_description=README_FILE.read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
