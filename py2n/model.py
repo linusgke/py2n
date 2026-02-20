@@ -16,6 +16,7 @@ class Py2NConnectionData:
     password: str | None = None
     auth: aiohttp.BasicAuth | None = None
     protocol: str | None = "http"
+    ssl_verify: bool = False
     unprivileged: bool | None = False
 
     def __post_init__(self) -> None:

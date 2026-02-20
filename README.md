@@ -38,6 +38,8 @@ async def run(websession):
             host="192.168.1.69",
             username="username",
             password="password",
+            # protocol="https", # default: "http"
+            # ssl_verify=True, # default: False
         ),
     )
 
@@ -45,3 +47,5 @@ async def run(websession):
 
 asyncio.run(main())
 ```
+
+`ssl_verify` controls TLS certificate verification for HTTPS connections. Requires the device to present a trusted server certificate (e.g. Let's Encrypt).

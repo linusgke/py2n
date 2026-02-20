@@ -311,10 +311,17 @@ async def api_request(
         endpoint="api/"+endpoint
 
     url=f"{options.protocol}://{options.host}/{endpoint}"
+    request_kwargs = {
+        "timeout": timeout,
+        "auth": options.auth,
+        "data": data,
+        "json": json,
+    }
+    if (options.protocol or "").lower() == "https":
+        request_kwargs["ssl"] = options.ssl_verify
+
     try:
-        response = await aiohttp_session.request(method,
-            url, timeout=timeout, auth=options.auth, ssl=False, data=data, json=json
-        )
+        response = await aiohttp_session.request(method, url, **request_kwargs)
         if response.content_type != CONTENT_TYPE:
             raise DeviceUnsupportedError(f"invalid content type: {response.content_type}")
 
