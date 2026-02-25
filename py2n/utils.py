@@ -29,7 +29,7 @@ from .const import (
     API_DIR_QUERY,
 )
 
-from .model import Py2NConnectionData, Py2NDevicePort
+from .model import Py2NConnectionData, Py2NDeviceSwitch, Py2NDevicePort
 
 from .exceptions import (
     DeviceConnectionError,
@@ -164,7 +164,7 @@ async def test_audio(
         raise
 
 
-async def get_switches(
+async def get_switch_status(
     aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
 ) -> List[Any]:
     """Get switches from device through REST call."""
@@ -196,6 +196,30 @@ async def get_switch_caps(
 
     return result["switches"]
 
+async def get_switches(
+    aiohttp_session: aiohttp.ClientSession, options: Py2NConnectionData
+) -> List[dict]:
+    switch_caps: List[Any] = await get_switch_caps(aiohttp_session, options)
+    statuses = await get_switch_status(aiohttp_session, options)
+    switch_status_by_id = {
+        switch["switch"]: switch for switch in statuses
+    }
+    switches = []
+    for caps in switch_caps:
+        switch_id = caps["switch"]
+        enabled = caps["enabled"]
+        mode = caps["mode"] if enabled else None
+        status = switch_status_by_id.get(switch_id, {})
+        switches.append(
+            Py2NDeviceSwitch(
+                id=switch_id,
+                enabled=enabled,
+                active=status.get("active", False),
+                locked=status.get("locked", False),
+                mode=mode,
+            )
+        )
+    return switches
 
 async def set_switch(
     aiohttp_session: aiohttp.ClientSession,
