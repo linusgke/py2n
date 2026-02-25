@@ -4,7 +4,7 @@ from setuptools import setup
 
 PROJECT_DIR = Path(__file__).parent.resolve()
 README_FILE = PROJECT_DIR / "README.md"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 setup(
     name='py2n',
@@ -20,7 +20,7 @@ setup(
     python_requires=">=3.9",
     zip_safe=True,
     platforms="any",
-    install_requires=["aiohttp"],
+    install_requires=["aiohttp>=3.12.0"],
     classifiers=[
         "Intended Audience :: Developers",
         "Operating System :: OS Independent",
