@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 import aiohttp
 import asyncio
-
 from typing import Any, List
 
 from .const import (
@@ -335,10 +334,20 @@ async def api_request(
         endpoint="api/"+endpoint
 
     url=f"{options.protocol}://{options.host}/{endpoint}"
+    request_kwargs = {
+        "timeout": timeout,
+        "data": data,
+        "json": json,
+    }
+    if options.auth is not None:
+        request_kwargs["auth"] = options.auth
+    if options.auth_method == "digest" and options.digest_auth_middleware is not None:
+        request_kwargs["middlewares"] = (options.digest_auth_middleware,)
+    if (options.protocol or "").lower() == "https":
+        request_kwargs["ssl"] = options.ssl_verify
+
     try:
-        response = await aiohttp_session.request(method,
-            url, timeout=timeout, auth=options.auth, ssl=False, data=data, json=json
-        )
+        response = await aiohttp_session.request(method, url, **request_kwargs)
         if response.content_type != CONTENT_TYPE:
             raise DeviceUnsupportedError(f"invalid content type: {response.content_type}")
 
@@ -356,9 +365,10 @@ async def api_request(
     if not result["success"]:
         _LOGGER.debug("host %s: api unsuccessful: %r", options.host, result)
         code = result["error"]["code"]
+        has_credentials = options.username is not None and options.password is not None
         try:
             error = ApiError(code)
-            if error == ApiError.INSUFFICIENT_PRIVILEGES and not options.auth:
+            if error == ApiError.INSUFFICIENT_PRIVILEGES and not has_credentials:
                 error = ApiError.AUTHORIZATION_REQUIRED
 
             err = DeviceApiError(error)

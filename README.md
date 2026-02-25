@@ -38,6 +38,9 @@ async def run(websession):
             host="192.168.1.69",
             username="username",
             password="password",
+            # auth_method="digest", # default: "basic"
+            # protocol="https", # default: "http"
+            # ssl_verify=True, # default: False
         ),
     )
 
@@ -45,3 +48,6 @@ async def run(websession):
 
 asyncio.run(main())
 ```
+
+`auth_method` controls HTTP auth scheme and supports `"basic"` (default) and `"digest"`. Digest auth relies on `aiohttp.DigestAuthMiddleware`. 2N recommends Digest Auth, especially if using plain HTTP instead of HTTPS.
+`ssl_verify` controls TLS certificate verification for HTTPS connections. Requires the device to present a trusted server certificate (e.g. Let's Encrypt).
