@@ -9,7 +9,7 @@ Asynchronous library to control [2N Telekomunikace® devices](https://www.2n.com
 ## Requirements
 
 - Python >= 3.9
-- aiohttp
+- aiohttp >= 3.12.0 
 
 ## Install
 ```bash
